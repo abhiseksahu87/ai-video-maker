@@ -1,386 +1,249 @@
 import os
+import re
 import base64
+import uuid
+import wave
+import subprocess
 from pathlib import Path
+from threading import Thread, Lock
 
+import requests
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel, Field
 from google import genai
+import imageio_ffmpeg
 
 
 APP_DIR = Path(__file__).resolve().parent
-AUDIO_DIR = APP_DIR / "audio"
-AUDIO_DIR.mkdir(exist_ok=True)
+WORK_DIR = APP_DIR / "jobs"
+WORK_DIR.mkdir(exist_ok=True)
+
+JOBS = {}
+JOBS_LOCK = Lock()
 
 app = FastAPI(title="AI YouTube Video Maker")
 
 
-class ScriptRequest(BaseModel):
+class CompleteVideoRequest(BaseModel):
     topic: str = Field(min_length=3, max_length=500)
-    language: str = "English"
-    duration_minutes: int = Field(default=10, ge=1, le=60)
-
-
-class VoiceRequest(BaseModel):
-    text: str = Field(min_length=3, max_length=12000)
     language: str = "Hindi"
+    duration_minutes: int = Field(default=10, ge=1, le=30)
 
 
-class SceneRequest(BaseModel):
-    script: str = Field(min_length=20, max_length=20000)
+def set_job(job_id, **values):
+    with JOBS_LOCK:
+        JOBS.setdefault(job_id, {}).update(values)
 
 
-@app.get("/", response_class=HTMLResponse)
-def home():
-    return (APP_DIR / "index.html").read_text(encoding="utf-8")
+def get_job(job_id):
+    with JOBS_LOCK:
+        return dict(JOBS.get(job_id, {}))
 
 
-@app.get("/health")
-def health():
-    return {"ok": True}
+def gemini_client():
+    api_key = os.getenv("GEMINI_API_KEY")
+
+    if not api_key:
+        raise RuntimeError(
+            "GEMINI_API_KEY is not configured on the server."
+        )
+
+    return genai.Client(api_key=api_key)
 
 
 # ============================================================
 # SCRIPT GENERATION
 # ============================================================
 
-@app.post("/api/script")
-def generate_script(req: ScriptRequest):
-
-    api_key = os.getenv("GEMINI_API_KEY")
-
-    if not api_key:
-        raise HTTPException(
-            status_code=500,
-            detail="GEMINI_API_KEY is not configured on the server."
-        )
+def make_script(client, topic, language, duration):
 
     prompt = f"""
 Create a professional long-form YouTube documentary script.
 
-Topic: {req.topic}
-Language: {req.language}
-Target duration: {req.duration_minutes} minutes.
+Topic: {topic}
+Language: {language}
+Target duration: {duration} minutes.
 
-The video should feel like a professional cinematic documentary
-suitable for a YouTube history, civilization, science, technology,
-or educational channel.
-
-Return the result in this exact structure:
+Return exactly this structure:
 
 TITLE:
-A strong and engaging YouTube title.
+...
 
 HOOK:
-A powerful opening narration that immediately creates curiosity.
+...
 
 INTRO:
-A short introduction explaining what the viewer will discover.
+...
 
 SCENES:
 
 Scene 1:
 Narration:
+...
 Visual:
+...
 Duration:
+...
 
 Scene 2:
 Narration:
+...
 Visual:
+...
 Duration:
+...
 
-Continue with enough scenes to cover the complete target duration.
+Continue with enough scenes for the target duration.
 
 ENDING:
-A strong conclusion and natural YouTube call-to-action.
+...
 
-IMPORTANT HISTORICAL AND FACTUAL REQUIREMENTS:
+FACTUAL REQUIREMENTS:
 
-- Prioritize historically accurate and evidence-based information.
-- Clearly distinguish established historical evidence from traditional,
+- Prioritize evidence-based information.
+- Clearly distinguish established evidence from traditional,
   legendary, religious, or disputed accounts.
-- Never invent dates, quotations, battles, numbers, places, people,
-  archaeological discoveries, or historical events.
-- Do not present legends or later traditions as proven facts.
-- When historians disagree about an important issue, briefly acknowledge
-  the uncertainty.
-- Avoid exaggerated claims unless they are well supported.
-- Be especially careful with ancient history where primary evidence
-  may be limited.
-- If a claim comes mainly from a later tradition, explicitly say so.
-- Keep the narration engaging without sacrificing factual accuracy.
+- Never invent dates, quotations, battles, numbers, places,
+  people, discoveries, or events.
+- Acknowledge important uncertainty.
+- Avoid exaggerated claims unless well supported.
+- Avoid anachronisms.
 
 VISUAL REQUIREMENTS:
 
-- Give cinematic visual descriptions for every scene.
-- Visuals must match the narration.
-- Make each visual description suitable for later AI image or video
-  generation.
-- Include environments, architecture, people, clothing, landscapes,
-  historical atmosphere, camera movement, and lighting where appropriate.
-- Avoid anachronisms.
+- Every scene needs a useful visual description.
+- Historical visuals must use period-appropriate clothing,
+  architecture, landscapes and technology.
+- Do not invent a person's exact appearance when reliable
+  evidence is absent.
+- Make visuals suitable for a cinematic documentary.
+- Do not put text, logos, captions or watermarks inside visuals.
 
-SCRIPT REQUIREMENTS:
-
-- Make the story flow naturally from beginning to end.
-- Use engaging documentary-style narration.
-- Avoid unnecessary repetition.
-- Make scene durations add up approximately to the requested
-  {req.duration_minutes}-minute target.
-- Keep the script suitable for professional YouTube narration.
-- Do not mention these instructions in the final script.
+Keep narration natural and suitable for voiceover.
 """
 
-    try:
+    response = client.models.generate_content(
+        model="gemini-3.5-flash-lite",
+        contents=prompt,
+    )
 
-        client = genai.Client(api_key=api_key)
-
-        response = client.models.generate_content(
-            model="gemini-3.5-flash-lite",
-            contents=prompt,
+    if not response.text:
+        raise RuntimeError(
+            "Gemini returned an empty script."
         )
 
-        if not response.text:
-            raise RuntimeError("Gemini returned an empty response.")
-
-        return {
-            "success": True,
-            "script": response.text
-        }
-
-    except Exception as exc:
-
-        raise HTTPException(
-            status_code=500,
-            detail=str(exc)
-        )
+    return response.text
 
 
 # ============================================================
-# VOICEOVER GENERATION
+# EXTRACT SCENES
 # ============================================================
 
-@app.post("/api/voice")
-def generate_voice(req: VoiceRequest):
+def extract_scenes(script):
 
-    api_key = os.getenv("GEMINI_API_KEY")
+    pattern = re.compile(
+        r"Scene\s+\d+\s*:\s*(.*?)(?=\n\s*Scene\s+\d+\s*:|\n\s*ENDING\s*:|\Z)",
+        re.I | re.S,
+    )
 
-    if not api_key:
-        raise HTTPException(
-            status_code=500,
-            detail="GEMINI_API_KEY is not configured on the server."
+    scenes = []
+
+    for block in pattern.findall(script):
+
+        narration_match = re.search(
+            r"Narration\s*:\s*(.*?)(?=\n\s*Visual\s*:)",
+            block,
+            re.I | re.S,
         )
 
-    try:
+        visual_match = re.search(
+            r"Visual\s*:\s*(.*?)(?=\n\s*Duration\s*:|\Z)",
+            block,
+            re.I | re.S,
+        )
 
-        client = genai.Client(api_key=api_key)
+        duration_match = re.search(
+            r"Duration\s*:\s*([0-9]+(?:\.[0-9]+)?)",
+            block,
+            re.I,
+        )
 
-        voice_prompt = f"""
-Read the following documentary narration in a professional,
-cinematic YouTube documentary voice.
+        if not narration_match:
+            continue
 
-Language: {req.language}
+        narration = narration_match.group(1).strip()
 
-Voice style:
+        visual = (
+            visual_match.group(1).strip()
+            if visual_match
+            else "Cinematic documentary scene related to the narration."
+        )
+
+        duration = (
+            float(duration_match.group(1))
+            if duration_match
+            else 60.0
+        )
+
+        if narration:
+            scenes.append(
+                {
+                    "narration": narration,
+                    "visual": visual,
+                    "duration": duration,
+                }
+            )
+
+    return scenes
+
+
+def make_narration(scenes, script):
+
+    if scenes:
+        return "\n\n".join(
+            scene["narration"]
+            for scene in scenes
+        )
+
+    return script
+
+
+# ============================================================
+# VOICEOVER
+# ============================================================
+
+def generate_voice(
+    client,
+    narration,
+    language,
+    output_path,
+):
+
+    voice_prompt = f"""
+Read this documentary narration exactly as written.
+
+Language: {language}
+
+Style:
+
 - Natural
 - Clear
 - Warm
 - Authoritative
 - Cinematic
-- Moderate speaking pace
-- Appropriate dramatic emphasis
+- Moderate pace
+- Dramatic emphasis where appropriate
 - No background music
-- Do not add words that are not in the supplied narration
+- Do not add words
 
-Narration:
+NARRATION:
 
-{req.text}
+{narration}
 """
 
-        response = client.models.generate_content(
-            model="gemini-3.8-flash-tts",
-            contents=[
-                {
-                    "role": "user",
-                    "parts": [
-                        {
-                            "text": voice_prompt
-                        }
-                    ]
-                }
-            ],
-            config={
-                "response_modalities": ["AUDIO"],
-                "speech_config": {
-                    "voice_config": {
-                        "voice": "Kore"
-                    }
-                }
-            },
-        )
-
-        audio_data = None
-
-        if response.candidates:
-
-            candidate = response.candidates[0]
-
-            if candidate.content and candidate.content.parts:
-
-                for part in candidate.content.parts:
-
-                    if getattr(part, "inline_data", None):
-
-                        audio_data = part.inline_data.data
-                        break
-
-        if not audio_data:
-            raise RuntimeError("Gemini returned no audio.")
-
-        if isinstance(audio_data, str):
-            audio_bytes = base64.b64decode(audio_data)
-        else:
-            audio_bytes = audio_data
-
-        filename = "voiceover.wav"
-        output_path = AUDIO_DIR / filename
-
-        with open(output_path, "wb") as audio_file:
-            audio_file.write(audio_bytes)
-
-        return {
-            "success": True,
-            "audio_url": f"/api/audio/{filename}",
-            "filename": filename
-        }
-
-    except Exception as exc:
-
-        raise HTTPException(
-            status_code=500,
-            detail=str(exc)
-        )
-
-
-# ============================================================
-# SCENE PROMPT GENERATION
-# ============================================================
-
-@app.post("/api/scenes")
-def generate_scene_prompts(req: SceneRequest):
-
-    api_key = os.getenv("GEMINI_API_KEY")
-
-    if not api_key:
-        raise HTTPException(
-            status_code=500,
-            detail="GEMINI_API_KEY is not configured on the server."
-        )
-
-    prompt = f"""
-Analyze the following YouTube documentary script.
-
-Create a clean visual-generation plan for every scene.
-
-SCRIPT:
-
-{req.script}
-
-For every scene, return:
-
-Scene 1:
-IMAGE PROMPT:
-A detailed cinematic image-generation prompt.
-
-CAMERA:
-Describe the camera angle or movement that could later be simulated
-with pan, zoom, or motion effects.
-
-MOOD:
-Describe the emotional atmosphere.
-
-HISTORICAL DETAILS:
-List important historically appropriate details that should appear.
-
-Scene 2:
-IMAGE PROMPT:
-A detailed cinematic image-generation prompt.
-
-CAMERA:
-Describe the camera angle or movement.
-
-MOOD:
-Describe the emotional atmosphere.
-
-HISTORICAL DETAILS:
-List important historically appropriate details.
-
-Continue for every scene.
-
-IMPORTANT:
-
-- Create one strong primary visual for each scene.
-- The visual must directly match the narration.
-- For historical subjects, avoid modern clothing, buildings,
-  vehicles, weapons, technology, and architecture.
-- Do not invent specific historical appearances for people when
-  reliable evidence does not exist.
-- If a person's exact appearance is unknown, describe them generally.
-- Avoid text, captions, logos, watermarks, and modern interfaces
-  inside generated images.
-- Use cinematic documentary composition.
-- Use realistic environments, lighting, architecture and clothing.
-- Make prompts suitable for AI image generation.
-- Prefer historically plausible details over fantasy.
-- Do not add facts that are not supported by the script.
-"""
-
-    try:
-
-        client = genai.Client(api_key=api_key)
-
-        response = client.models.generate_content(
-            model="gemini-3.5-flash-lite",
-            contents=prompt,
-        )
-
-        if not response.text:
-            raise RuntimeError(
-                "Gemini returned an empty scene-prompt response."
-            )
-
-        return {
-            "success": True,
-            "scenes": response.text
-        }
-
-    except Exception as exc:
-
-        raise HTTPException(
-            status_code=500,
-            detail=str(exc)
-        )
-
-
-# ============================================================
-# AUDIO FILE
-# ============================================================
-
-@app.get("/api/audio/{filename}")
-def get_audio(filename: str):
-
-    safe_name = Path(filename).name
-    path = AUDIO_DIR / safe_name
-
-    if not path.exists() or path.suffix.lower() != ".wav":
-
-        raise HTTPException(
-            status_code=404,
-            detail="Audio not found."
-        )
-
-    return FileResponse(
-        path,
-        media_type="audio/wav",
-        filename=safe_name
-    )
+    response = client.models.generate_content(
+        model="gemini-3.8-flash-tts",
+        contents=[
+            {
+                "role": "
