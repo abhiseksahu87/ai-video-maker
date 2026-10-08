@@ -286,4 +286,101 @@ SCRIPT:
 
 {req.script}
 
-For
+For every scene, return:
+
+Scene 1:
+IMAGE PROMPT:
+A detailed cinematic image-generation prompt.
+
+CAMERA:
+Describe the camera angle or movement that could later be simulated
+with pan, zoom, or motion effects.
+
+MOOD:
+Describe the emotional atmosphere.
+
+HISTORICAL DETAILS:
+List important historically appropriate details that should appear.
+
+Scene 2:
+IMAGE PROMPT:
+A detailed cinematic image-generation prompt.
+
+CAMERA:
+Describe the camera angle or movement.
+
+MOOD:
+Describe the emotional atmosphere.
+
+HISTORICAL DETAILS:
+List important historically appropriate details.
+
+Continue for every scene.
+
+IMPORTANT:
+
+- Create one strong primary visual for each scene.
+- The visual must directly match the narration.
+- For historical subjects, avoid modern clothing, buildings,
+  vehicles, weapons, technology, and architecture.
+- Do not invent specific historical appearances for people when
+  reliable evidence does not exist.
+- If a person's exact appearance is unknown, describe them generally.
+- Avoid text, captions, logos, watermarks, and modern interfaces
+  inside generated images.
+- Use cinematic documentary composition.
+- Use realistic environments, lighting, architecture and clothing.
+- Make prompts suitable for AI image generation.
+- Prefer historically plausible details over fantasy.
+- Do not add facts that are not supported by the script.
+"""
+
+    try:
+
+        client = genai.Client(api_key=api_key)
+
+        response = client.models.generate_content(
+            model="gemini-3.5-flash-lite",
+            contents=prompt,
+        )
+
+        if not response.text:
+            raise RuntimeError(
+                "Gemini returned an empty scene-prompt response."
+            )
+
+        return {
+            "success": True,
+            "scenes": response.text
+        }
+
+    except Exception as exc:
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(exc)
+        )
+
+
+# ============================================================
+# AUDIO FILE
+# ============================================================
+
+@app.get("/api/audio/{filename}")
+def get_audio(filename: str):
+
+    safe_name = Path(filename).name
+    path = AUDIO_DIR / safe_name
+
+    if not path.exists() or path.suffix.lower() != ".wav":
+
+        raise HTTPException(
+            status_code=404,
+            detail="Audio not found."
+        )
+
+    return FileResponse(
+        path,
+        media_type="audio/wav",
+        filename=safe_name
+    )
