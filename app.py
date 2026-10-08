@@ -1,14 +1,16 @@
-
 import os
+import base64
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel, Field
 from google import genai
 
 
 APP_DIR = Path(__file__).resolve().parent
+AUDIO_DIR = APP_DIR / "audio"
+AUDIO_DIR.mkdir(exist_ok=True)
 
 app = FastAPI(title="AI YouTube Video Maker")
 
@@ -17,6 +19,11 @@ class ScriptRequest(BaseModel):
     topic: str = Field(min_length=3, max_length=500)
     language: str = "English"
     duration_minutes: int = Field(default=10, ge=1, le=60)
+
+
+class VoiceRequest(BaseModel):
+    text: str = Field(min_length=3, max_length=12000)
+    language: str = "Hindi"
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -89,8 +96,7 @@ IMPORTANT HISTORICAL AND FACTUAL REQUIREMENTS:
 - Do not present legends or later traditions as proven facts.
 - When historians disagree about an important issue, briefly acknowledge
   the uncertainty.
-- Avoid exaggerated claims such as "the first", "the greatest", "the
-  world's largest", or similar statements unless they are well supported.
+- Avoid exaggerated claims unless they are well supported.
 - Be especially careful with ancient history where primary evidence
   may be limited.
 - If a claim comes mainly from a later tradition, explicitly say so.
@@ -104,8 +110,6 @@ VISUAL REQUIREMENTS:
   generation.
 - Include environments, architecture, people, clothing, landscapes,
   historical atmosphere, camera movement, and lighting where appropriate.
-- Do not include impossible modern objects in historical scenes unless
-  the narration specifically requires them.
 - Avoid anachronisms.
 
 SCRIPT REQUIREMENTS:
@@ -142,3 +146,120 @@ SCRIPT REQUIREMENTS:
             status_code=500,
             detail=str(exc)
         )
+
+
+@app.post("/api/voice")
+def generate_voice(req: VoiceRequest):
+
+    api_key = os.getenv("GEMINI_API_KEY")
+
+    if not api_key:
+        raise HTTPException(
+            status_code=500,
+            detail="GEMINI_API_KEY is not configured on the server."
+        )
+
+    try:
+
+        client = genai.Client(api_key=api_key)
+
+        voice_prompt = f"""
+Read the following documentary narration in a professional,
+cinematic YouTube documentary voice.
+
+Language: {req.language}
+
+Voice style:
+- Natural
+- Clear
+- Warm
+- Authoritative
+- Cinematic
+- Moderate speaking pace
+- Appropriate dramatic emphasis
+- No background music
+- Do not add words that are not in the supplied narration
+
+Narration:
+
+{req.text}
+"""
+
+        response = client.models.generate_content(
+            model="gemini-3.8-flash-tts",
+            contents=[
+                {
+                    "role": "user",
+                    "parts": [
+                        {
+                            "text": voice_prompt
+                        }
+                    ]
+                }
+            ],
+            config={
+                "response_modalities": ["AUDIO"],
+                "speech_config": {
+                    "voice_config": {
+                        "voice": "Kore"
+                    }
+                }
+            },
+        )
+
+        audio_data = None
+
+        if response.candidates:
+            candidate = response.candidates[0]
+
+            if candidate.content and candidate.content.parts:
+                for part in candidate.content.parts:
+                    if getattr(part, "inline_data", None):
+                        audio_data = part.inline_data.data
+                        break
+
+        if not audio_data:
+            raise RuntimeError("Gemini returned no audio.")
+
+        if isinstance(audio_data, str):
+            audio_bytes = base64.b64decode(audio_data)
+        else:
+            audio_bytes = audio_data
+
+        filename = "voiceover.wav"
+        output_path = AUDIO_DIR / filename
+
+        with open(output_path, "wb") as audio_file:
+            audio_file.write(audio_bytes)
+
+        return {
+            "success": True,
+            "audio_url": f"/api/audio/{filename}",
+            "filename": filename
+        }
+
+    except Exception as exc:
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(exc)
+        )
+
+
+@app.get("/api/audio/{filename}")
+def get_audio(filename: str):
+
+    safe_name = Path(filename).name
+    path = AUDIO_DIR / safe_name
+
+    if not path.exists() or path.suffix.lower() != ".wav":
+        raise HTTPException(
+            status_code=404,
+            detail="Audio not found."
+        )
+
+    return FileResponse(
+        path,
+        media_type="audio/wav",
+        filename=safe_name
+    )
