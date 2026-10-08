@@ -1,3 +1,4 @@
+
 import os
 import re
 import base64
@@ -15,66 +16,123 @@ from google import genai
 import imageio_ffmpeg
 
 
+# ============================================================
+# APP SETUP
+# ============================================================
+
 APP_DIR = Path(__file__).resolve().parent
+
 WORK_DIR = APP_DIR / "jobs"
 WORK_DIR.mkdir(exist_ok=True)
 
 JOBS = {}
 JOBS_LOCK = Lock()
 
-app = FastAPI(title="AI YouTube Video Maker")
+app = FastAPI(
+    title="AI YouTube Video Maker"
+)
 
+
+# ============================================================
+# REQUEST MODEL
+# ============================================================
 
 class CompleteVideoRequest(BaseModel):
-    topic: str = Field(min_length=3, max_length=500)
-    language: str = "Hindi"
-    duration_minutes: int = Field(default=10, ge=1, le=30)
 
+    topic: str = Field(
+        min_length=3,
+        max_length=500
+    )
+
+    language: str = "Hindi"
+
+    duration_minutes: int = Field(
+        default=10,
+        ge=1,
+        le=30
+    )
+
+
+# ============================================================
+# JOB HELPERS
+# ============================================================
 
 def set_job(job_id, **values):
+
     with JOBS_LOCK:
-        JOBS.setdefault(job_id, {}).update(values)
+
+        JOBS.setdefault(
+            job_id,
+            {}
+        ).update(values)
 
 
 def get_job(job_id):
-    with JOBS_LOCK:
-        return dict(JOBS.get(job_id, {}))
 
+    with JOBS_LOCK:
+
+        return dict(
+            JOBS.get(
+                job_id,
+                {}
+            )
+        )
+
+
+# ============================================================
+# GEMINI CLIENT
+# ============================================================
 
 def gemini_client():
-    api_key = os.getenv("GEMINI_API_KEY")
+
+    api_key = os.getenv(
+        "GEMINI_API_KEY"
+    )
 
     if not api_key:
+
         raise RuntimeError(
             "GEMINI_API_KEY is not configured on the server."
         )
 
-    return genai.Client(api_key=api_key)
+    return genai.Client(
+        api_key=api_key
+    )
 
 
 # ============================================================
 # SCRIPT GENERATION
 # ============================================================
 
-def make_script(client, topic, language, duration):
+def make_script(
+    client,
+    topic,
+    language,
+    duration
+):
 
     prompt = f"""
 Create a professional long-form YouTube documentary script.
 
 Topic: {topic}
+
 Language: {language}
+
 Target duration: {duration} minutes.
 
-Return exactly this structure:
+The documentary should feel cinematic,
+professional and suitable for YouTube.
+
+Use this exact structure:
 
 TITLE:
-...
+A strong YouTube title.
 
 HOOK:
-...
+A powerful opening.
 
 INTRO:
-...
+A short introduction.
 
 SCENES:
 
@@ -94,41 +152,65 @@ Visual:
 Duration:
 ...
 
-Continue with enough scenes for the target duration.
+Continue with enough scenes to cover
+the requested duration.
 
 ENDING:
-...
+A strong conclusion and natural
+YouTube call-to-action.
 
-FACTUAL REQUIREMENTS:
+IMPORTANT FACTUAL REQUIREMENTS:
 
-- Prioritize evidence-based information.
-- Clearly distinguish established evidence from traditional,
-  legendary, religious, or disputed accounts.
-- Never invent dates, quotations, battles, numbers, places,
-  people, discoveries, or events.
-- Acknowledge important uncertainty.
-- Avoid exaggerated claims unless well supported.
+- Prioritize historically accurate
+  and evidence-based information.
+- Clearly distinguish established
+  evidence from traditional,
+  legendary, religious or disputed
+  accounts.
+- Never invent dates.
+- Never invent quotations.
+- Never invent battles.
+- Never invent numbers.
+- Never invent archaeological discoveries.
+- Never invent historical events.
+- Acknowledge uncertainty when historians
+  disagree.
+- Avoid exaggerated claims.
 - Avoid anachronisms.
 
 VISUAL REQUIREMENTS:
 
-- Every scene needs a useful visual description.
-- Historical visuals must use period-appropriate clothing,
-  architecture, landscapes and technology.
-- Do not invent a person's exact appearance when reliable
-  evidence is absent.
-- Make visuals suitable for a cinematic documentary.
-- Do not put text, logos, captions or watermarks inside visuals.
+- Every scene must have a useful
+  visual description.
+- Historical scenes must use
+  period-appropriate clothing,
+  architecture, weapons and technology.
+- Do not invent an exact appearance
+  of a historical person when evidence
+  is unavailable.
+- Make visuals cinematic.
+- Do not add logos.
+- Do not add watermarks.
+- Do not add modern objects.
 
-Keep narration natural and suitable for voiceover.
+SCRIPT REQUIREMENTS:
+
+- Make the story flow naturally.
+- Keep narration engaging.
+- Avoid unnecessary repetition.
+- Make scene durations approximately
+  match the requested duration.
+- Make the narration suitable for
+  professional voiceover.
 """
 
     response = client.models.generate_content(
         model="gemini-3.5-flash-lite",
-        contents=prompt,
+        contents=prompt
     )
 
     if not response.text:
+
         raise RuntimeError(
             "Gemini returned an empty script."
         )
@@ -143,64 +225,99 @@ Keep narration natural and suitable for voiceover.
 def extract_scenes(script):
 
     pattern = re.compile(
-        r"Scene\s+\d+\s*:\s*(.*?)(?=\n\s*Scene\s+\d+\s*:|\n\s*ENDING\s*:|\Z)",
-        re.I | re.S,
+        r"Scene\s+\d+\s*:\s*(.*?)"
+        r"(?=\n\s*Scene\s+\d+\s*:|"
+        r"\n\s*ENDING\s*:|\Z)",
+        re.I | re.S
     )
 
     scenes = []
 
-    for block in pattern.findall(script):
+    blocks = pattern.findall(
+        script
+    )
+
+    for block in blocks:
 
         narration_match = re.search(
-            r"Narration\s*:\s*(.*?)(?=\n\s*Visual\s*:)",
+            r"Narration\s*:\s*(.*?)"
+            r"(?=\n\s*Visual\s*:)",
             block,
-            re.I | re.S,
+            re.I | re.S
         )
 
         visual_match = re.search(
-            r"Visual\s*:\s*(.*?)(?=\n\s*Duration\s*:|\Z)",
+            r"Visual\s*:\s*(.*?)"
+            r"(?=\n\s*Duration\s*:|\Z)",
             block,
-            re.I | re.S,
+            re.I | re.S
         )
 
         duration_match = re.search(
-            r"Duration\s*:\s*([0-9]+(?:\.[0-9]+)?)",
+            r"Duration\s*:\s*"
+            r"([0-9]+(?:\.[0-9]+)?)",
             block,
-            re.I,
+            re.I
         )
 
         if not narration_match:
             continue
 
-        narration = narration_match.group(1).strip()
-
-        visual = (
-            visual_match.group(1).strip()
-            if visual_match
-            else "Cinematic documentary scene related to the narration."
+        narration = (
+            narration_match
+            .group(1)
+            .strip()
         )
 
-        duration = (
-            float(duration_match.group(1))
-            if duration_match
-            else 60.0
-        )
+        if visual_match:
+
+            visual = (
+                visual_match
+                .group(1)
+                .strip()
+            )
+
+        else:
+
+            visual = (
+                "Cinematic documentary "
+                "scene related to the narration."
+            )
+
+        if duration_match:
+
+            duration = float(
+                duration_match.group(1)
+            )
+
+        else:
+
+            duration = 60.0
 
         if narration:
+
             scenes.append(
                 {
                     "narration": narration,
                     "visual": visual,
-                    "duration": duration,
+                    "duration": duration
                 }
             )
 
     return scenes
 
 
-def make_narration(scenes, script):
+# ============================================================
+# CREATE COMPLETE NARRATION
+# ============================================================
+
+def make_narration(
+    scenes,
+    script
+):
 
     if scenes:
+
         return "\n\n".join(
             scene["narration"]
             for scene in scenes
@@ -210,30 +327,31 @@ def make_narration(scenes, script):
 
 
 # ============================================================
-# VOICEOVER
+# VOICEOVER GENERATION
 # ============================================================
 
 def generate_voice(
     client,
     narration,
     language,
-    output_path,
+    output_path
 ):
 
     voice_prompt = f"""
-Read this documentary narration exactly as written.
+Read this documentary narration exactly
+as written.
 
 Language: {language}
 
-Style:
+Voice style:
 
 - Natural
 - Clear
 - Warm
 - Authoritative
 - Cinematic
-- Moderate pace
-- Dramatic emphasis where appropriate
+- Moderate speaking pace
+- Appropriate dramatic emphasis
 - No background music
 - Do not add words
 
@@ -244,6 +362,69 @@ NARRATION:
 
     response = client.models.generate_content(
         model="gemini-3.8-flash-tts",
+
         contents=[
             {
-                "role": "
+                "role": "user",
+                "parts": [
+                    {
+                        "text": voice_prompt
+                    }
+                ]
+            }
+        ],
+
+        config={
+            "response_modalities": [
+                "AUDIO"
+            ],
+
+            "speech_config": {
+                "voice_config": {
+                    "voice": "Kore"
+                }
+            }
+        }
+    )
+
+    audio_data = None
+
+    if response.candidates:
+
+        candidate = (
+            response.candidates[0]
+        )
+
+        if (
+            candidate.content
+            and candidate.content.parts
+        ):
+
+            for part in (
+                candidate.content.parts
+            ):
+
+                if getattr(
+                    part,
+                    "inline_data",
+                    None
+                ):
+
+                    audio_data = (
+                        part.inline_data.data
+                    )
+
+                    break
+
+    if not audio_data:
+
+        raise RuntimeError(
+            "Gemini returned no audio."
+        )
+
+    if isinstance(
+        audio_data,
+        str
+    ):
+
+        audio_bytes =
