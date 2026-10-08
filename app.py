@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from google import genai
 
+
 APP_DIR = Path(__file__).resolve().parent
 
 app = FastAPI(title="AI YouTube Video Maker")
@@ -30,6 +31,7 @@ def health():
 
 @app.post("/api/script")
 def generate_script(req: ScriptRequest):
+
     api_key = os.getenv("GEMINI_API_KEY")
 
     if not api_key:
@@ -39,26 +41,29 @@ def generate_script(req: ScriptRequest):
         )
 
     prompt = f"""
-Create a professional YouTube documentary script.
+Create a professional long-form YouTube documentary script.
 
 Topic: {req.topic}
 Language: {req.language}
 Target duration: {req.duration_minutes} minutes.
 
-Create a compelling long-form video suitable for YouTube.
+The video should feel like a professional cinematic documentary
+suitable for a YouTube history, civilization, science, technology,
+or educational channel.
 
 Return the result in this exact structure:
 
 TITLE:
-A strong YouTube title
+A strong and engaging YouTube title.
 
 HOOK:
-An engaging opening narration.
+A powerful opening narration that immediately creates curiosity.
 
 INTRO:
-A short introduction.
+A short introduction explaining what the viewer will discover.
 
 SCENES:
+
 Scene 1:
 Narration:
 Visual:
@@ -69,25 +74,58 @@ Narration:
 Visual:
 Duration:
 
-Continue until the complete video is covered.
+Continue with enough scenes to cover the complete target duration.
 
 ENDING:
-A strong conclusion and call to action.
+A strong conclusion and natural YouTube call-to-action.
 
-Requirements:
-- Make the narration historically/informationally responsible.
-- Use cinematic visual descriptions.
-- Keep each scene suitable for later image/video generation.
+IMPORTANT HISTORICAL AND FACTUAL REQUIREMENTS:
+
+- Prioritize historically accurate and evidence-based information.
+- Clearly distinguish established historical evidence from traditional,
+  legendary, religious, or disputed accounts.
+- Never invent dates, quotations, battles, numbers, places, people,
+  archaeological discoveries, or historical events.
+- Do not present legends or later traditions as proven facts.
+- When historians disagree about an important issue, briefly acknowledge
+  the uncertainty.
+- Avoid exaggerated claims such as "the first", "the greatest", "the
+  world's largest", or similar statements unless they are well supported.
+- Be especially careful with ancient history where primary evidence
+  may be limited.
+- If a claim comes mainly from a later tradition, explicitly say so.
+- Keep the narration engaging without sacrificing factual accuracy.
+
+VISUAL REQUIREMENTS:
+
+- Give cinematic visual descriptions for every scene.
+- Visuals must match the narration.
+- Make each visual description suitable for later AI image or video
+  generation.
+- Include environments, architecture, people, clothing, landscapes,
+  historical atmosphere, camera movement, and lighting where appropriate.
+- Do not include impossible modern objects in historical scenes unless
+  the narration specifically requires them.
+- Avoid anachronisms.
+
+SCRIPT REQUIREMENTS:
+
 - Make the story flow naturally from beginning to end.
-- Do not mention these instructions.
+- Use engaging documentary-style narration.
+- Avoid unnecessary repetition.
+- Make scene durations add up approximately to the requested
+  {req.duration_minutes}-minute target.
+- Keep the script suitable for professional YouTube narration.
+- Do not mention these instructions in the final script.
 """
 
     try:
+
         client = genai.Client(api_key=api_key)
 
         response = client.models.generate_content(
-    model="gemini-3.5-flash-lite",
-    contents=prompt,
+            model="gemini-3.5-flash-lite",
+            contents=prompt,
         )
 
         if not response.text:
@@ -99,6 +137,7 @@ Requirements:
         }
 
     except Exception as exc:
+
         raise HTTPException(
             status_code=500,
             detail=str(exc)
