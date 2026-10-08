@@ -6,121 +6,119 @@
 <title>AI YouTube Video Maker</title>
 
 <style>
-* {
-  box-sizing: border-box;
+*{box-sizing:border-box}
+
+body{
+  margin:0;
+  background:#0b1020;
+  color:#fff;
+  font-family:system-ui,sans-serif
 }
 
-body {
-  margin: 0;
-  background: #0b1020;
-  color: #ffffff;
-  font-family: system-ui, sans-serif;
+.wrap{
+  max-width:760px;
+  margin:auto;
+  padding:24px 16px
 }
 
-.wrap {
-  max-width: 760px;
-  margin: auto;
-  padding: 24px 16px;
+h1{
+  font-size:30px;
+  margin:0 0 8px
 }
 
-h1 {
-  font-size: 30px;
-  margin: 0 0 8px;
+.sub{
+  color:#aab4c8;
+  margin-bottom:24px
 }
 
-.sub {
-  color: #aab4c8;
-  margin-bottom: 24px;
+.card{
+  background:#151d32;
+  border:1px solid #293653;
+  border-radius:18px;
+  padding:20px
 }
 
-.card {
-  background: #151d32;
-  border: 1px solid #293653;
-  border-radius: 18px;
-  padding: 20px;
+label{
+  display:block;
+  font-weight:700;
+  margin:16px 0 8px
 }
 
-label {
-  display: block;
-  font-weight: 700;
-  margin: 16px 0 8px;
+input,select,textarea{
+  width:100%;
+  background:#0d1528;
+  color:#fff;
+  border:1px solid #39476a;
+  border-radius:12px;
+  padding:14px;
+  font-size:16px
 }
 
-input,
-select,
-textarea {
-  width: 100%;
-  background: #0d1528;
-  color: #ffffff;
-  border: 1px solid #39476a;
-  border-radius: 12px;
-  padding: 14px;
-  font-size: 16px;
+textarea{
+  min-height:150px;
+  resize:vertical
 }
 
-textarea {
-  min-height: 150px;
-  resize: vertical;
+button{
+  width:100%;
+  margin-top:20px;
+  padding:16px;
+  border:0;
+  border-radius:12px;
+  background:#6366f1;
+  color:white;
+  font-size:18px;
+  font-weight:800
 }
 
-button {
-  width: 100%;
-  margin-top: 20px;
-  padding: 16px;
-  border: 0;
-  border-radius: 12px;
-  background: #6366f1;
-  color: white;
-  font-size: 18px;
-  font-weight: 800;
+button:disabled{
+  opacity:.6
 }
 
-button:disabled {
-  opacity: 0.6;
+.secondary{
+  background:#374151
 }
 
-.secondary {
-  background: #374151;
-}
-
-#status {
-  margin-top: 18px;
-  color: #aab4c8;
-  white-space: pre-wrap;
+#status{
+  margin-top:18px;
+  color:#aab4c8;
+  white-space:pre-wrap
 }
 
 #result,
-#voiceResult {
-  display: none;
-  margin-top: 20px;
+#voiceResult,
+#sceneResult{
+  display:none;
+  margin-top:20px
 }
 
-#script {
-  white-space: pre-wrap;
-  line-height: 1.6;
-  background: #0d1528;
-  padding: 16px;
-  border-radius: 12px;
-  border: 1px solid #39476a;
-  max-height: 600px;
-  overflow-y: auto;
+#script,
+#scenes{
+  white-space:pre-wrap;
+  line-height:1.6;
+  background:#0d1528;
+  padding:16px;
+  border-radius:12px;
+  border:1px solid #39476a;
+  max-height:600px;
+  overflow-y:auto
 }
 
-audio {
-  width: 100%;
-  margin-top: 12px;
+audio{
+  width:100%;
+  margin-top:12px
 }
 
-.download {
-  display: block;
-  text-align: center;
-  text-decoration: none;
-  margin-top: 14px;
-  padding: 14px;
-  border-radius: 12px;
-  background: #374151;
-  color: white;
-  font-weight: 700;
+.download{
+  display:block;
+  text-align:center;
+  text-decoration:none;
+  margin-top:14px;
+  padding:14px;
+  border-radius:12px;
+  background:#374151;
+  color:white;
+  font-weight:700
 }
 </style>
 </head>
@@ -132,7 +130,7 @@ audio {
 <h1>🎬 AI YouTube Video Maker</h1>
 
 <div class="sub">
-Create long-form YouTube scripts and voiceovers.
+Create long-form YouTube scripts, voiceovers and scene plans.
 </div>
 
 <div class="card">
@@ -140,42 +138,46 @@ Create long-form YouTube scripts and voiceovers.
 <label>Video Topic</label>
 
 <textarea
-  id="topic"
-  placeholder="Example: The rise of the Maurya Empire and how Chandragupta Maurya built one of India's greatest empires."
+id="topic"
+placeholder="Example: The rise of the Maurya Empire and how Chandragupta Maurya built one of India's greatest empires."
 ></textarea>
 
 <label>Language</label>
 
 <select id="language">
-  <option value="English">English</option>
-  <option value="Hindi">Hindi</option>
-  <option value="Hinglish">Hinglish</option>
+<option value="English">English</option>
+<option value="Hindi">Hindi</option>
+<option value="Hinglish">Hinglish</option>
 </select>
 
 <label>Target Duration</label>
 
 <select id="duration">
-  <option value="5">5 minutes</option>
-  <option value="10" selected>10 minutes</option>
-  <option value="15">15 minutes</option>
-  <option value="20">20 minutes</option>
-  <option value="30">30 minutes</option>
+<option value="5">5 minutes</option>
+<option value="10" selected>10 minutes</option>
+<option value="15">15 minutes</option>
+<option value="20">20 minutes</option>
+<option value="30">30 minutes</option>
 </select>
 
 <button id="generate">
-  📝 Generate YouTube Script
+📝 Generate YouTube Script
 </button>
 
 <div id="status"></div>
 
 <div id="result">
 
-<h2>Generated Script</h2>
+<h2>📝 Generated Script</h2>
 
 <div id="script"></div>
 
 <button id="voice">
-  🎙️ Generate Voiceover
+🎙️ Generate Voiceover
+</button>
+
+<button id="scenesButton" class="secondary">
+🎨 Generate Scene Prompts
 </button>
 
 </div>
@@ -187,13 +189,21 @@ Create long-form YouTube scripts and voiceovers.
 <audio id="audio" controls></audio>
 
 <a
-  id="download"
-  class="download"
-  href="#"
-  download="voiceover.wav"
+id="download"
+class="download"
+href="#"
+download="voiceover.wav"
 >
-  ⬇️ Download Voiceover
+⬇️ Download Voiceover
 </a>
+
+</div>
+
+<div id="sceneResult">
+
+<h2>🎨 Scene Visual Plan</h2>
+
+<div id="scenes"></div>
 
 </div>
 
@@ -202,17 +212,38 @@ Create long-form YouTube scripts and voiceovers.
 
 <script>
 
-const generateButton = document.getElementById("generate");
-const voiceButton = document.getElementById("voice");
+const generateButton =
+document.getElementById("generate");
 
-const status = document.getElementById("status");
+const voiceButton =
+document.getElementById("voice");
 
-const result = document.getElementById("result");
-const scriptBox = document.getElementById("script");
+const scenesButton =
+document.getElementById("scenesButton");
 
-const voiceResult = document.getElementById("voiceResult");
-const audio = document.getElementById("audio");
-const download = document.getElementById("download");
+const status =
+document.getElementById("status");
+
+const result =
+document.getElementById("result");
+
+const scriptBox =
+document.getElementById("script");
+
+const voiceResult =
+document.getElementById("voiceResult");
+
+const sceneResult =
+document.getElementById("sceneResult");
+
+const scenesBox =
+document.getElementById("scenes");
+
+const audio =
+document.getElementById("audio");
+
+const download =
+document.getElementById("download");
 
 
 /* =========================
@@ -221,91 +252,92 @@ const download = document.getElementById("download");
 
 generateButton.onclick = async () => {
 
-  const topic =
-    document.getElementById("topic").value.trim();
+const topic =
+document.getElementById("topic").value.trim();
 
-  const language =
-    document.getElementById("language").value;
+const language =
+document.getElementById("language").value;
 
-  const duration =
-    Number(document.getElementById("duration").value);
+const duration =
+Number(
+document.getElementById("duration").value
+);
 
+if(!topic){
 
-  if (!topic) {
+status.textContent =
+"❌ Please enter a video topic.";
 
-    status.textContent =
-      "❌ Please enter a video topic.";
+return;
+}
 
-    return;
-  }
+generateButton.disabled = true;
+voiceButton.disabled = true;
+scenesButton.disabled = true;
 
+result.style.display = "none";
+voiceResult.style.display = "none";
+sceneResult.style.display = "none";
 
-  generateButton.disabled = true;
+status.textContent =
+"⏳ Creating your YouTube script...";
 
-  voiceButton.disabled = true;
+try{
 
-  result.style.display = "none";
+const response =
+await fetch(
+"/api/script",
+{
+method:"POST",
 
-  voiceResult.style.display = "none";
+headers:{
+"Content-Type":"application/json"
+},
 
-  status.textContent =
-    "⏳ Creating your YouTube script...";
+body:JSON.stringify({
+topic:topic,
+language:language,
+duration_minutes:duration
+})
+}
+);
 
+const data =
+await response.json();
 
-  try {
+if(!response.ok){
 
-    const response = await fetch(
-      "/api/script",
-      {
-        method: "POST",
+throw new Error(
+data.detail ||
+"Something went wrong."
+);
+}
 
-        headers: {
-          "Content-Type": "application/json"
-        },
+scriptBox.textContent =
+data.script;
 
-        body: JSON.stringify({
-          topic: topic,
-          language: language,
-          duration_minutes: duration
-        })
-      }
-    );
+result.style.display =
+"block";
 
+status.textContent =
+"✅ Script created successfully!";
 
-    const data = await response.json();
+voiceButton.disabled = false;
+scenesButton.disabled = false;
 
+}
+catch(error){
 
-    if (!response.ok) {
+status.textContent =
+"❌ " + error.message;
 
-      throw new Error(
-        data.detail ||
-        "Something went wrong."
-      );
-    }
+}
+finally{
 
+generateButton.disabled = false;
 
-    scriptBox.textContent =
-      data.script;
+}
 
-    result.style.display =
-      "block";
-
-    status.textContent =
-      "✅ Script created successfully!";
-
-    voiceButton.disabled = false;
-
-
-  } catch (error) {
-
-    status.textContent =
-      "❌ " + error.message;
-
-  } finally {
-
-    generateButton.disabled = false;
-
-  }
 };
 
 
@@ -315,88 +347,159 @@ generateButton.onclick = async () => {
 
 voiceButton.onclick = async () => {
 
-  const script =
-    scriptBox.textContent.trim();
+const script =
+scriptBox.textContent.trim();
 
-  const language =
-    document.getElementById("language").value;
+const language =
+document.getElementById("language").value;
+
+if(!script){
+
+status.textContent =
+"❌ No script available.";
+
+return;
+}
+
+voiceButton.disabled = true;
+
+status.textContent =
+"🎙️ Generating voiceover...";
+
+try{
+
+const response =
+await fetch(
+"/api/voice",
+{
+method:"POST",
+
+headers:{
+"Content-Type":"application/json"
+},
+
+body:JSON.stringify({
+text:script,
+language:language
+})
+}
+);
+
+const data =
+await response.json();
+
+if(!response.ok){
+
+throw new Error(
+data.detail ||
+"Voice generation failed."
+);
+}
+
+audio.src =
+data.audio_url;
+
+download.href =
+data.audio_url;
+
+voiceResult.style.display =
+"block";
+
+status.textContent =
+"✅ Voiceover created successfully!";
+
+}
+catch(error){
+
+status.textContent =
+"❌ " + error.message;
+
+}
+finally{
+
+voiceButton.disabled = false;
+
+}
+
+};
 
 
-  if (!script) {
+/* =========================
+   GENERATE SCENE PROMPTS
+========================= */
 
-    status.textContent =
-      "❌ No script available.";
+scenesButton.onclick = async () => {
 
-    return;
-  }
+const script =
+scriptBox.textContent.trim();
 
+if(!script){
 
-  voiceButton.disabled = true;
+status.textContent =
+"❌ No script available.";
 
-  voiceResult.style.display =
-    "none";
+return;
+}
 
-  status.textContent =
-    "🎙️ Generating voiceover...";
+scenesButton.disabled = true;
 
-  
-  try {
+sceneResult.style.display =
+"none";
 
-    const response = await fetch(
-      "/api/voice",
-      {
-        method: "POST",
+status.textContent =
+"🎨 Creating cinematic scene prompts...";
 
-        headers: {
-          "Content-Type": "application/json"
-        },
+try{
 
-        body: JSON.stringify({
-          text: script,
-          language: language
-        })
-      }
-    );
+const response =
+await fetch(
+"/api/scenes",
+{
+method:"POST",
 
+headers:{
+"Content-Type":"application/json"
+},
 
-    const data =
-      await response.json();
+body:JSON.stringify({
+script:script
+})
+}
+);
 
+const data =
+await response.json();
 
-    if (!response.ok) {
+if(!response.ok){
 
-      throw new Error(
-        data.detail ||
-        "Voice generation failed."
-      );
-    }
+throw new Error(
+data.detail ||
+"Scene generation failed."
+);
+}
 
+scenesBox.textContent =
+data.scenes;
 
-    audio.src =
-      data.audio_url;
+sceneResult.style.display =
+"block";
 
-    download.href =
-      data.audio_url;
+status.textContent =
+"✅ Scene visual plan created!";
 
+}
+catch(error){
 
-    voiceResult.style.display =
-      "block";
+status.textContent =
+"❌ " + error.message;
 
+}
+finally{
 
-    status.textContent =
-      "✅ Voiceover created successfully!";
+scenesButton.disabled = false;
 
+}
 
-  } catch (error) {
-
-    status.textContent =
-      "❌ " + error.message;
-
-  } finally {
-
-    voiceButton.disabled = false;
-
-  }
 };
 
 </script>
