@@ -1,33 +1,190 @@
-<!doctype html>
-<html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#111827"><title>AI Video Maker</title>
-<style>
-*{box-sizing:border-box}body{margin:0;background:#0b1020;color:#f8fafc;font-family:system-ui,sans-serif}
-.wrap{max-width:720px;margin:auto;padding:20px}h1{font-size:28px;margin:8px 0 6px}.sub{color:#aab4c5;margin-bottom:22px}
-.card{background:#121a2b;border:1px solid #27344c;border-radius:18px;padding:18px;margin-bottom:16px}
-label{display:block;font-weight:700;margin:12px 0 8px}
-textarea,select{width:100%;border:1px solid #334155;background:#0f172a;color:#fff;border-radius:12px;padding:13px;font-size:16px}
-textarea{min-height:140px;resize:vertical}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-button{width:100%;border:0;border-radius:12px;padding:14px;font-size:17px;font-weight:800;background:#6366f1;color:#fff;margin-top:16px}
-button:disabled{opacity:.55}.status{margin-top:12px;color:#aab4c5;min-height:24px}
-video{width:100%;border-radius:14px;margin-top:12px;background:#000;max-height:70vh}
-a.download{display:block;text-align:center;text-decoration:none;background:#16a34a;color:white;padding:13px;border-radius:12px;font-weight:800;margin-top:12px}
-.note{font-size:13px;color:#94a3b8;line-height:1.5}
-</style></head><body><div class="wrap">
-<h1>🎬 AI Video Maker</h1><div class="sub">Create short AI videos with Google Veo.</div>
-<div class="card"><label for="prompt">Describe your video</label>
-<textarea id="prompt" placeholder="Example: Cinematic drone shot zooming from space toward Earth, then India, with ancient Indian cities, traders, temples and warriors."></textarea>
-<div class="row"><div><label for="ratio">Format</label><select id="ratio"><option value="9:16">9:16 — Shorts/Reels</option><option value="16:9">16:9 — YouTube</option></select></div>
-<div><label for="resolution">Quality</label><select id="resolution"><option value="720p">720p</option><option value="1080p">1080p</option></select></div></div>
-<button id="generate">Generate Video</button><div class="status" id="status"></div></div>
-<div class="card" id="result" style="display:none"><strong>Your video</strong><video id="video" controls playsinline></video>
-<a id="download" class="download" download>⬇️ Save MP4</a></div>
-<div class="note">Veo 3.1 currently generates short clips (up to 8 seconds for the standard model). Generation can take several minutes. Your Gemini API key stays on the server.</div>
-</div>
-<script>
-const btn=document.getElementById("generate"),status=document.getElementById("status"),result=document.getElementById("result"),video=document.getElementById("video"),download=document.getElementById("download");
-btn.onclick=async()=>{const prompt=document.getElementById("prompt").value.trim(),aspect_ratio=document.getElementById("ratio").value,resolution=document.getElementById("resolution").value;
-if(!prompt){status.textContent="Please enter a video prompt.";return}btn.disabled=true;result.style.display="none";status.textContent="Generating your video… please keep this page open.";
-try{const res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt,aspect_ratio,resolution})});const data=await res.json();if(!res.ok)throw new Error(data.detail||"Generation failed.");video.src=data.video_url;download.href=data.video_url;result.style.display="block";status.textContent="✅ Video generated successfully."}catch(e){status.textContent="❌ "+e.message}finally{btn.disabled=false}};
+
 </script></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI YouTube Video Maker</title>
+
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:#0b1020;
+  color:#fff;
+  font-family:system-ui,sans-serif
+}
+.wrap{
+  max-width:760px;
+  margin:auto;
+  padding:24px 16px
+}
+h1{font-size:30px;margin:0 0 8px}
+.sub{color:#aab4c8;margin-bottom:24px}
+.card{
+  background:#151d32;
+  border:1px solid #293653;
+  border-radius:18px;
+  padding:20px
+}
+label{
+  display:block;
+  font-weight:700;
+  margin:16px 0 8px
+}
+input,select,textarea{
+  width:100%;
+  background:#0d1528;
+  color:#fff;
+  border:1px solid #39476a;
+  border-radius:12px;
+  padding:14px;
+  font-size:16px
+}
+textarea{
+  min-height:150px;
+  resize:vertical
+}
+button{
+  width:100%;
+  margin-top:20px;
+  padding:16px;
+  border:0;
+  border-radius:12px;
+  background:#6366f1;
+  color:white;
+  font-size:18px;
+  font-weight:800
+}
+button:disabled{opacity:.6}
+#status{
+  margin-top:18px;
+  color:#aab4c8;
+  white-space:pre-wrap
+}
+#result{
+  display:none;
+  margin-top:20px
+}
+#script{
+  white-space:pre-wrap;
+  line-height:1.6;
+  background:#0d1528;
+  padding:16px;
+  border-radius:12px;
+  border:1px solid #39476a
+}
+</style>
+</head>
+
+<body>
+
+<div class="wrap">
+
+<h1>🎬 AI YouTube Video Maker</h1>
+
+<div class="sub">
+Create long-form YouTube scripts from a topic.
+</div>
+
+<div class="card">
+
+<label>Video Topic</label>
+
+<textarea id="topic"
+placeholder="Example: The rise of the Maurya Empire and how Chandragupta Maurya built one of India's greatest empires."></textarea>
+
+<label>Language</label>
+
+<select id="language">
+<option value="English">English</option>
+<option value="Hindi">Hindi</option>
+<option value="Hinglish">Hinglish</option>
+</select>
+
+<label>Target Duration</label>
+
+<select id="duration">
+<option value="5">5 minutes</option>
+<option value="10" selected>10 minutes</option>
+<option value="15">15 minutes</option>
+<option value="20">20 minutes</option>
+<option value="30">30 minutes</option>
+</select>
+
+<button id="generate">
+Generate YouTube Script
+</button>
+
+<div id="status"></div>
+
+<div id="result">
+<h2>Generated Script</h2>
+<div id="script"></div>
+</div>
+
+</div>
+</div>
+
+<script>
+
+const btn = document.getElementById("generate");
+const status = document.getElementById("status");
+const result = document.getElementById("result");
+const scriptBox = document.getElementById("script");
+
+btn.onclick = async () => {
+
+  const topic = document.getElementById("topic").value.trim();
+  const language = document.getElementById("language").value;
+  const duration = Number(document.getElementById("duration").value);
+
+  if (!topic) {
+    status.textContent = "❌ Please enter a video topic.";
+    return;
+  }
+
+  btn.disabled = true;
+  result.style.display = "none";
+  status.textContent = "⏳ Creating your YouTube script...";
+
+  try {
+
+    const response = await fetch("/api/script", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        topic: topic,
+        language: language,
+        duration_minutes: duration
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.detail || "Something went wrong.");
+    }
+
+    scriptBox.textContent = data.script;
+    result.style.display = "block";
+    status.textContent = "✅ Script created successfully!";
+
+  } catch (error) {
+
+    status.textContent = "❌ " + error.message;
+
+  } finally {
+
+    btn.disabled = false;
+
+  }
+};
+
+</script>
+
+</body>
+</html>
