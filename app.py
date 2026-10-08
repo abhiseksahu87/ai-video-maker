@@ -26,6 +26,10 @@ class VoiceRequest(BaseModel):
     language: str = "Hindi"
 
 
+class SceneRequest(BaseModel):
+    script: str = Field(min_length=20, max_length=20000)
+
+
 @app.get("/", response_class=HTMLResponse)
 def home():
     return (APP_DIR / "index.html").read_text(encoding="utf-8")
@@ -35,6 +39,10 @@ def home():
 def health():
     return {"ok": True}
 
+
+# ============================================================
+# SCRIPT GENERATION
+# ============================================================
 
 @app.post("/api/script")
 def generate_script(req: ScriptRequest):
@@ -148,6 +156,10 @@ SCRIPT REQUIREMENTS:
         )
 
 
+# ============================================================
+# VOICEOVER GENERATION
+# ============================================================
+
 @app.post("/api/voice")
 def generate_voice(req: VoiceRequest):
 
@@ -210,11 +222,15 @@ Narration:
         audio_data = None
 
         if response.candidates:
+
             candidate = response.candidates[0]
 
             if candidate.content and candidate.content.parts:
+
                 for part in candidate.content.parts:
+
                     if getattr(part, "inline_data", None):
+
                         audio_data = part.inline_data.data
                         break
 
@@ -246,20 +262,28 @@ Narration:
         )
 
 
-@app.get("/api/audio/{filename}")
-def get_audio(filename: str):
+# ============================================================
+# SCENE PROMPT GENERATION
+# ============================================================
 
-    safe_name = Path(filename).name
-    path = AUDIO_DIR / safe_name
+@app.post("/api/scenes")
+def generate_scene_prompts(req: SceneRequest):
 
-    if not path.exists() or path.suffix.lower() != ".wav":
+    api_key = os.getenv("GEMINI_API_KEY")
+
+    if not api_key:
         raise HTTPException(
-            status_code=404,
-            detail="Audio not found."
+            status_code=500,
+            detail="GEMINI_API_KEY is not configured on the server."
         )
 
-    return FileResponse(
-        path,
-        media_type="audio/wav",
-        filename=safe_name
-    )
+    prompt = f"""
+Analyze the following YouTube documentary script.
+
+Create a clean visual-generation plan for every scene.
+
+SCRIPT:
+
+{req.script}
+
+For
